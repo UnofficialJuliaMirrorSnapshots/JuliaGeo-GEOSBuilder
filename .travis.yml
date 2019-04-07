@@ -1,0 +1,93 @@
+language: julia
+os:
+  - linux
+julia:
+  - 1.0
+notifications:
+  email: false
+git:
+  depth: 99999999
+cache:
+  timeout: 1000
+  directories:
+    - downloads
+env:
+  global:
+    - BINARYBUILDER_DOWNLOADS_CACHE=downloads
+    - BINARYBUILDER_AUTOMATIC_APPLE=true
+  # Our build takes too long for one job, so split targets across multiple jobs
+  # triplets come from
+  # using BinaryBuilder; triplet.(expand_gcc_versions(supported_platforms()))
+  # with the exception that we don't build x86_64-linux-musl-gcc4 due to
+  # https://github.com/JuliaPackaging/BinaryBuilder.jl/issues/387
+  # and x86_64-w64-mingw32-gcc4 is disabled due to
+  # https://github.com/JuliaPackaging/BinaryBuilder.jl/issues/407
+  matrix:
+    - TARGET=i686-linux-gnu-gcc4
+    - TARGET=i686-linux-gnu-gcc7
+    - TARGET=i686-linux-gnu-gcc8
+    - TARGET=x86_64-linux-gnu-gcc4
+    - TARGET=x86_64-linux-gnu-gcc7
+    - TARGET=x86_64-linux-gnu-gcc8
+    - TARGET=aarch64-linux-gnu-gcc4
+    - TARGET=aarch64-linux-gnu-gcc7
+    - TARGET=aarch64-linux-gnu-gcc8
+    - TARGET=arm-linux-gnueabihf-gcc4
+    - TARGET=arm-linux-gnueabihf-gcc7
+    - TARGET=arm-linux-gnueabihf-gcc8
+    - TARGET=powerpc64le-linux-gnu-gcc4
+    - TARGET=powerpc64le-linux-gnu-gcc7
+    - TARGET=powerpc64le-linux-gnu-gcc8
+    - TARGET=i686-linux-musl-gcc4
+    - TARGET=i686-linux-musl-gcc7
+    - TARGET=i686-linux-musl-gcc8
+    # - TARGET=x86_64-linux-musl-gcc4
+    - TARGET=x86_64-linux-musl-gcc7
+    - TARGET=x86_64-linux-musl-gcc8
+    - TARGET=aarch64-linux-musl-gcc4
+    - TARGET=aarch64-linux-musl-gcc7
+    - TARGET=aarch64-linux-musl-gcc8
+    - TARGET=arm-linux-musleabihf-gcc4
+    - TARGET=arm-linux-musleabihf-gcc7
+    - TARGET=arm-linux-musleabihf-gcc8
+    - TARGET=x86_64-apple-darwin14-gcc4
+    - TARGET=x86_64-apple-darwin14-gcc7
+    - TARGET=x86_64-apple-darwin14-gcc8
+    - TARGET=x86_64-unknown-freebsd11.1-gcc4
+    - TARGET=x86_64-unknown-freebsd11.1-gcc7
+    - TARGET=x86_64-unknown-freebsd11.1-gcc8
+    - TARGET=i686-w64-mingw32-gcc4
+    - TARGET=i686-w64-mingw32-gcc7
+    - TARGET=i686-w64-mingw32-gcc8
+    # - TARGET=x86_64-w64-mingw32-gcc4
+    - TARGET=x86_64-w64-mingw32-gcc7
+    - TARGET=x86_64-w64-mingw32-gcc8
+sudo: required
+
+jobs:
+  include:
+    - stage: regenerate build.jl
+      script: julia --color=yes build_tarballs.jl --only-buildjl
+      if: tag IS present
+
+# Before anything else, get the latest versions of things
+before_script:
+  - julia --color=yes -e 'using Pkg;
+      Pkg.add(PackageSpec(name="BinaryProvider", rev="master"));
+      Pkg.add(PackageSpec(name="BinaryBuilder", rev="master"))'
+
+script:
+  - julia --color=yes build_tarballs.jl $TARGET
+
+deploy:
+    provider: releases
+    api_key:
+        # Note; this api_key is only valid for JuliaGeo/GEOSBuilder; you need
+        # to make your own: https://docs.travis-ci.com/user/deployment/releases/
+        secure: f2nIvx1CyuzW+/RxURxx0njR0YT2ZLdHFHcETiLA42xSdcpE1qTujnWMrFLk3Cb/bw5OAU7BpFMDqTCDpEr1Sz6rZQ4knp/wsDkD5qG2wsBdwyJKWevKoSnqvIXkBZQTM7izeueHMf9fDDdcgZk6tw8ORmM9lE6jlidKH6Sk39BxYdXz5I2YMIPTQ5iK/E3U95gCYPVXO/AQMlJWIf4en6xv71XQVtFKV/oGHFhmVOx0ypj3+YOarYfP/kblR0n3NpCzRTY25Vv0M+VusvYIxrOEfViitZ0JQFfATQ7tNa4RcJR0vebQeo1BkINGgFOcyJQy8QbmJzmklfBTO+uDelC+/Q2FGFJcjLy7DrFoLyX/Goj+BcsCjjA7RCXO4zZ1DPBWPwWNmb2BWStggTWzFVIVBBVCoRvQTcRT1wtLvJcYhgtgVzHsJZnetpZ1F9TXn+9YOc2xNqIm7mbszDL8LRjN7/fBUv2Y+7oVPukcXCKMrc/J7L+gb4zT8uq3hcaXE7+7D2xITcLQxkfEbcS/PClr1QsfPCps5yKLhLjfBalVICzrcDbwycWCW8l8b1OewDkRf2lotaiq+jmauBLKFUDHtXdynAYWzBsr36uxA6trOWDYZYsKafEFnD775On71TgDb+bmHMo56Uy3lIJKkt2Wf2E09eru80Aq4X3MsaY=
+    file_glob: true
+    file: products/*
+    skip_cleanup: true
+    on:
+        repo: JuliaGeo/GEOSBuilder
+        tags: true
